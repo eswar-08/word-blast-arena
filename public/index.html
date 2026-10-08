@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WORD BLAST ARENA 💣 | Real-Time Multiplayer Party Game</title>
+  <meta name="description" content="A real-time multiplayer party game for friends, family, and classmates. No login, no installs, instant room codes!">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💣</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="particle-canvas-container"></div>
+
+  <!-- FLOATING REACTIONS CONTAINER -->
+  <div id="floating-reactions-layer"></div>
+
+  <!-- APP CONTAINER -->
+  <div id="app">
+    <!-- NAVIGATION BAR -->
+    <header class="top-bar">
+      <div class="brand">
+        <span class="bomb-icon">💣</span>
+        <span class="brand-title">WORD BLAST <span class="highlight">ARENA</span></span>
+      </div>
+
+      <div class="header-actions">
+        <!-- Room pill when inside a room -->
+        <div id="room-code-badge" class="room-badge hidden" title="Click to copy join link">
+          <span class="room-label">ROOM</span>
+          <span id="room-code-text" class="room-code">----</span>
+          <span class="copy-icon">📋</span>
+        </div>
+
+        <button id="btn-sound-toggle" class="icon-btn" aria-label="Toggle sound" title="Sound Effects">
+          <span id="sound-icon">🔊</span>
+        </button>
+
+        <button id="btn-how-to-play" class="icon-btn" aria-label="How to play" title="How to Play">
+          <span>❓</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN GAME VIEWPORTS -->
+    <main class="game-viewport">
+
+      <!-- ================= 1. WELCOME / JOIN SCREEN ================= -->
+      <section id="screen-welcome" class="game-screen active">
+        <div class="welcome-card card glass-panel">
+          <div class="hero-badge">⚡ Instant Multiplayer Party Game</div>
+          <h1 class="hero-title">Think Fast.<br><span class="neon-text">Pass The Bomb!</span></h1>
+          <p class="hero-subtitle">Type a word with the letters before it blows up in your hands. Friends join from any phone or PC with zero login.</p>
+
+          <!-- Avatar & Nickname selector -->
+          <div class="setup-section">
+            <label class="section-label">Choose Your Avatar & Nickname</label>
+            <div class="avatar-carousel">
+              <button id="avatar-prev" class="carousel-arrow">◀</button>
+              <div id="avatar-display" class="current-avatar">🚀</div>
+              <button id="avatar-next" class="carousel-arrow">▶</button>
+            </div>
+
+            <div class="input-group">
+              <input type="text" id="player-name-input" maxlength="15" placeholder="Enter your name..." autocomplete="off">
+              <button id="btn-random-name" class="btn-text-action" title="Random Name">🎲</button>
+            </div>
+          </div>
+
+          <!-- Join or Create Action Tabs -->
+          <div class="join-tabs">
+            <button id="tab-join" class="tab-btn active">Join Room</button>
+            <button id="tab-create" class="tab-btn">Create Room</button>
+          </div>
+
+          <!-- JOIN PANEL -->
+          <div id="panel-join" class="tab-panel active">
+            <div class="room-input-container">
+              <input type="text" id="join-room-code-input" maxlength="6" placeholder="ENTER 4-LETTER CODE" autocomplete="off" autocapitalize="characters">
+              <button id="btn-join-room" class="btn btn-primary btn-large">
+                <span>JOIN GAME</span> 🚀
+              </button>
+            </div>
+          </div>
+
+          <!-- CREATE PANEL -->
+          <div id="panel-create" class="tab-panel">
+            <p class="panel-hint">Start a new party lobby and invite your friends via room code or instant QR code!</p>
+            <button id="btn-create-room" class="btn btn-gold btn-large">
+              <span>CREATE NEW ROOM</span> 👑
+            </button>
+          </div>
+
+          <!-- Feature perks -->
+          <div class="perks-row">
+            <div class="perk-pill">📱 Any Phone or PC</div>
+            <div class="perk-pill">👥 2 to 16 Players</div>
+            <div class="perk-pill">⚡ Live Screen Sync</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. LOBBY SCREEN ================= -->
+      <section id="screen-lobby" class="game-screen">
+        <div class="lobby-layout">
+          <!-- Room Code & Share Card -->
+          <div class="card glass-panel room-info-card">
+            <div class="room-share-header">
+              <span class="share-subtitle">ROOM CODE</span>
+              <div class="big-room-code-display" id="lobby-room-code">ABCD</div>
+              <p class="tap-hint">Tap below to copy invite link or scan QR code</p>
+            </div>
+
+            <div class="share-buttons-row">
+              <button id="btn-copy-link" class="btn btn-secondary">
+                <span>📋 Copy Invite Link</span>
+              </button>
+              <button id="btn-toggle-qr" class="btn btn-secondary">
+                <span>📱 Show QR Code</span>
+              </button>
+            </div>
+
+            <!-- QR Code container (Collapsible) -->
+            <div id="qr-container" class="qr-box hidden">
+              <div id="qr-code-graphic"></div>
+              <span class="qr-scan-label">Scan with your phone camera to join!</span>
+            </div>
+          </div>
+
+          <!-- Players in Room -->
+          <div class="card glass-panel players-card">
+            <div class="card-header-row">
+              <h3>Party Roster (<span id="player-count">0</span>/16)</h3>
+              <span id="host-badge-indicator" class="badge-role">Waiting for players...</span>
+            </div>
+
+            <div id="lobby-player-list" class="players-grid">
+              <!-- Player cards injected via JS -->
+            </div>
+          </div>
+
+          <!-- Game Settings (Host Only) -->
+          <div class="card glass-panel settings-card" id="host-settings-panel">
+            <div class="card-header-row">
+              <h3>Game Settings</h3>
+              <span class="badge-host-only">👑 Host Controls</span>
+            </div>
+
+            <div class="settings-grid">
+              <div class="setting-item">
+                <label>Game Mode</label>
+                <div class="segmented-control" id="mode-selector">
+                  <button class="seg-btn active" data-mode="bomb">💣 Bomb Blitz</button>
+                  <button class="seg-btn" data-mode="mind_meld">🔮 Mind Meld</button>
+                </div>
+              </div>
+
+              <div class="setting-item" id="setting-timer-box">
+                <label>Bomb Timer</label>
+                <div class="segmented-control" id="timer-selector">
+                  <button class="seg-btn" data-val="7">⚡ 7s (Fast)</button>
+                  <button class="seg-btn active" data-val="10">🔥 10s (Normal)</button>
+                  <button class="seg-btn" data-val="15">☕ 15s (Casual)</button>
+                </div>
+              </div>
+
+              <div class="setting-item" id="setting-lives-box">
+                <label>Starting Lives</label>
+                <div class="segmented-control" id="lives-selector">
+                  <button class="seg-btn" data-val="1">💀 1</button>
+                  <button class="seg-btn active" data-val="3">❤️ 3</button>
+                  <button class="seg-btn" data-val="5">💖 5</button>
+                </div>
+              </div>
+
+              <div class="setting-item" id="setting-diff-box">
+                <label>Difficulty</label>
+                <div class="segmented-control" id="diff-selector">
+                  <button class="seg-btn" data-val="easy">Easy (2-letter)</button>
+                  <button class="seg-btn active" data-val="normal">Normal</button>
+                  <button class="seg-btn" data-val="hard">Hard (3-letter)</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Start Game Button -->
+            <div class="lobby-action-row">
+              <button id="btn-start-game" class="btn btn-gold btn-xl">
+                <span>START GAME</span> 🔥
+              </button>
+              <div id="non-host-waiting-msg" class="waiting-prompt hidden">
+                <div class="pulse-dot"></div>
+                <span>Waiting for the Host to start the game...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. PLAYING SCREEN (BOMB MODE) ================= -->
+      <section id="screen-game-bomb" class="game-screen">
+        <div class="game-arena-layout">
+          <!-- Top Live Players Bar -->
+          <div class="active-players-strip" id="game-players-strip">
+            <!-- Mini player cards with lives & scores -->
+          </div>
+
+          <!-- Arena Main Stage -->
+          <div class="arena-center-stage">
+            <div class="turn-banner" id="turn-announcement-banner">
+              <span id="turn-message-text">Get ready...</span>
+            </div>
+
+            <!-- THE BOMB -->
+            <div class="bomb-visual-container" id="bomb-actor">
+              <div class="bomb-timer-ring">
+                <svg viewBox="0 0 100 100" class="timer-svg">
+                  <circle cx="50" cy="50" r="45" class="timer-bg"></circle>
+                  <circle cx="50" cy="50" r="45" class="timer-progress" id="timer-circle"></circle>
+                </svg>
+                <div class="bomb-timer-number" id="bomb-timer-seconds">10</div>
+              </div>
+
+              <div class="bomb-body" id="bomb-core">
+                <div class="bomb-fuse">
+                  <div class="spark-flame" id="bomb-fuse-spark"></div>
+                </div>
+                <div class="bomb-syllable-display" id="syllable-target">---</div>
+              </div>
+            </div>
+
+            <div class="syllable-instructions">
+              Type a word containing <strong id="syllable-helper-text">...</strong>!
+            </div>
+
+            <!-- Input Box for Active Player -->
+            <div class="word-input-container" id="word-input-area">
+              <form id="word-submit-form" onsubmit="return false;">
+                <div class="input-wrapper">
+                  <input type="text" id="game-word-input" placeholder="Type your word..." autocomplete="off" autocapitalize="characters" spellcheck="false">
+                  <button type="submit" id="btn-submit-word" class="btn btn-submit">
+                    <span>PASS 💣</span>
+                  </button>
+                </div>
+              </form>
+              <div id="word-feedback-msg" class="feedback-msg"></div>
+            </div>
+
+            <!-- Spectator / Waiting Turn Prompt -->
+            <div id="waiting-turn-box" class="waiting-turn-box hidden">
+              <div class="spectate-indicator">
+                <span class="pulsing-eye">👀</span>
+                <span id="hot-seat-player-name">Waiting for active player...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Feed & Quick Reactions Bar -->
+          <div class="reactions-footer-bar">
+            <div class="quick-reactions">
+              <button class="reaction-btn" data-emoji="🔥">🔥</button>
+              <button class="reaction-btn" data-emoji="😂">😂</button>
+              <button class="reaction-btn" data-emoji="💀">💀</button>
+              <button class="reaction-btn" data-emoji="👏">👏</button>
+              <button class="reaction-btn" data-emoji="💣">💣</button>
+              <button class="reaction-btn" data-emoji="😱">😱</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4. PLAYING SCREEN (MIND MELD MODE) ================= -->
+      <section id="screen-game-mind-meld" class="game-screen">
+        <div class="mind-meld-layout">
+          <div class="card glass-panel mind-meld-card">
+            <div class="meld-badge">🔮 Mind Meld Telepathy</div>
+            <h2 class="meld-prompt-title" id="mind-meld-prompt-text">Loading Category...</h2>
+            <p class="meld-instruction">Type what comes to mind. If your answer matches another player, you both score big!</p>
+
+            <div id="mind-meld-input-area">
+              <div class="input-wrapper">
+                <input type="text" id="mind-meld-word-input" placeholder="Your secret word..." autocomplete="off">
+                <button id="btn-submit-mind-meld" class="btn btn-primary">
+                  <span>LOCK IN 🔒</span>
+                </button>
+              </div>
+              <div id="mind-meld-status" class="feedback-msg"></div>
+            </div>
+
+            <div class="meld-players-status">
+              <h4>Players Ready:</h4>
+              <div id="meld-ready-roster" class="meld-roster"></div>
+            </div>
+          </div>
+
+          <!-- Results View (Visible on round end) -->
+          <div id="mind-meld-results-card" class="card glass-panel hidden">
+            <h3>🎉 Mind Meld Reveal!</h3>
+            <div id="meld-matches-container"></div>
+            <div class="meld-next-btn-row">
+              <button id="btn-next-meld-round" class="btn btn-gold btn-large">Next Round 🚀</button>
+              <button id="btn-meld-back-lobby" class="btn btn-secondary">Return to Lobby</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5. GAME OVER / WINNER SCREEN ================= -->
+      <section id="screen-game-over" class="game-screen">
+        <div class="game-over-card card glass-panel">
+          <div class="trophy-icon">🏆</div>
+          <h2 class="winner-title">VICTORY ROYALE!</h2>
+          
+          <div class="winner-podium" id="winner-spotlight">
+            <div class="winner-avatar" id="winner-avatar-display">👑</div>
+            <div class="winner-name" id="winner-name-display">Winner</div>
+            <div class="winner-score" id="winner-score-display">0 PTS</div>
+          </div>
+
+          <div class="final-leaderboard">
+            <h3>Final Standings</h3>
+            <div id="final-leaderboard-list" class="leaderboard-list">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+
+          <div class="game-over-actions">
+            <button id="btn-play-again" class="btn btn-gold btn-large">
+              <span>PLAY AGAIN 🔄</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- TOAST NOTIFICATIONS LAYER -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- HOW TO PLAY MODAL -->
+    <div id="modal-how-to-play" class="modal-overlay hidden">
+      <div class="modal-content card glass-panel">
+        <div class="modal-header">
+          <h2>💣 How to Play Word Blast Arena</h2>
+          <button id="btn-close-modal" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="rules-step">
+            <div class="step-num">1</div>
+            <div class="step-desc">
+              <strong>Watch the Syllable:</strong> When it's your turn, a 2 or 3-letter prompt appears (e.g. <code>PRO</code>).
+            </div>
+          </div>
+          <div class="rules-step">
+            <div class="step-num">2</div>
+            <div class="step-desc">
+              <strong>Type & Pass:</strong> Type a valid word that contains that syllable (e.g. <code>PROJECT</code>, <code>APPROVE</code>) and hit Enter before the bomb explodes!
+            </div>
+          </div>
+          <div class="rules-step">
+            <div class="step-num">3</div>
+            <div class="step-desc">
+              <strong>Survive:</strong> If the timer hits 0s, BOOM! You lose 1 heart. Last player with hearts remaining wins the Crown 👑!
+            </div>
+          </div>
+          <div class="rules-step">
+            <div class="step-num">4</div>
+            <div class="step-desc">
+              <strong>React & Taunt:</strong> Spectators and players can tap emojis anytime to stream floating reactions onto everyone's screens!
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-modal-got-it" class="btn btn-primary">Got it, Let's Play!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Local Libraries for 100% offline & fast execution -->
+  <script src="qrcode.min.js"></script>
+  <script src="confetti.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
