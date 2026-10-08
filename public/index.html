@@ -6,6 +6,11 @@
   <title>WORD BLAST ARENA 💣 | Real-Time Multiplayer Party Game</title>
   <meta name="description" content="A real-time multiplayer party game for friends, family, and classmates. No login, no installs, instant room codes!">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💣</text></svg>">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0a0c16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,6 +38,10 @@
           <span id="room-code-text" class="room-code">----</span>
           <span class="copy-icon">📋</span>
         </div>
+
+        <button id="btn-install-app" class="icon-btn hidden" aria-label="Install App" title="Install App to Device">
+          <span>📲</span>
+        </button>
 
         <button id="btn-sound-toggle" class="icon-btn" aria-label="Toggle sound" title="Sound Effects">
           <span id="sound-icon">🔊</span>

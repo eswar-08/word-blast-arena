@@ -191,6 +191,7 @@ const dom = {
   // Navigation & Badges
   roomBadge: document.getElementById('room-code-badge'),
   roomCodeText: document.getElementById('room-code-text'),
+  btnInstallApp: document.getElementById('btn-install-app'),
   btnSoundToggle: document.getElementById('btn-sound-toggle'),
   soundIcon: document.getElementById('sound-icon'),
   btnHowToPlay: document.getElementById('btn-how-to-play'),
@@ -955,6 +956,40 @@ function bindEventListeners() {
   dom.btnHowToPlay.addEventListener('click', () => dom.modalHowToPlay.classList.remove('hidden'));
   dom.btnCloseModal.addEventListener('click', () => dom.modalHowToPlay.classList.add('hidden'));
   dom.btnModalGotIt.addEventListener('click', () => dom.modalHowToPlay.classList.add('hidden'));
+
+  // PWA Install Prompt handling
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (dom.btnInstallApp) {
+      dom.btnInstallApp.classList.remove('hidden');
+    }
+  });
+
+  if (dom.btnInstallApp) {
+    dom.btnInstallApp.addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+          showToast('🎉 Word Blast Arena installed to your device!');
+        }
+        deferredInstallPrompt = null;
+        dom.btnInstallApp.classList.add('hidden');
+      } else {
+        // Fallback instructions for iOS Safari or already installed
+        showToast('📲 Tap your browser Share menu ➔ "Add to Home Screen" to install!');
+      }
+    });
+  }
+
+  // Register Service Worker for PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.log('SW registration error:', err);
+    });
+  }
 }
 
 function submitWord() {

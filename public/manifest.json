@@ -1,0 +1,25 @@
+{
+  "name": "Word Blast Arena: Multiplayer Party Game",
+  "short_name": "WordBlast",
+  "description": "Instant real-time multiplayer party game for friends and family.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0c16",
+  "theme_color": "#0a0c16",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"]
+}
