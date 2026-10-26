@@ -214,6 +214,7 @@ class GameRoom:
             "current_syllable": self.current_syllable,
             "turn_time_total": self.settings["bomb_timer"],
             "turn_start_time": self.turn_start_time,
+            "server_time": time.time(),
             "used_words_count": len(self.used_words),
             "winner": self.winner,
             "last_event": self.last_event,

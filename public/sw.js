@@ -1,4 +1,4 @@
-const CACHE_NAME = 'word-blast-v1';
+const CACHE_NAME = 'word-blast-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
