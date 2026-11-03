@@ -6,6 +6,14 @@
 const AVATARS = ['🚀', '🐱', '🤖', '🍕', '🦊', '👾', '🦄', '⚡', '🤠', '🐼', '🎸', '👑', '🍩', '🐙', '🐉', '🥑'];
 const RANDOM_NAMES = ['NeonFox', 'CosmicAce', 'TurboPanda', 'PixelKnight', 'BlazeRider', 'HyperNinja', 'QuantumCat', 'StarLord', 'CyberHawk', 'FlashPulse'];
 
+// ==========================================
+// 🎵 CUSTOM MUSIC CONFIGURATION:
+// To use your own MP3/WAV/OGG music:
+// 1. Copy your audio file into the "public" folder (e.g. public/bgm.mp3)
+// 2. Set the file name or URL in the line below:
+// ==========================================
+const CUSTOM_MUSIC_FILE = 'https://www.zedge.net/ringtones/f2131cc3-510e-4163-bb17-fd704e8905ca#google_vignette'; // <-- CHANGE THIS LINE (e.g. 'bgm.mp3' or full URL)
+
 // Application State
 const state = {
   ws: null,
@@ -306,6 +314,7 @@ class MusicEngine {
   static timerId = null;
   static masterGain = null;
   static noiseBuffer = null;
+  static audioEl = null;
 
   static init(ctx) {
     if (!this.masterGain && ctx) {
@@ -335,6 +344,21 @@ class MusicEngine {
     this.init(ctx);
     if (this.isRunning) return;
     this.isRunning = true;
+
+    // If custom audio file is specified, play the MP3/audio file
+    if (typeof CUSTOM_MUSIC_FILE === 'string' && CUSTOM_MUSIC_FILE.trim() !== '') {
+      if (!this.audioEl) {
+        this.audioEl = new Audio(CUSTOM_MUSIC_FILE);
+        this.audioEl.loop = true;
+      }
+      this.audioEl.volume = state.musicEnabled ? 0.35 : 0;
+      if (state.musicEnabled) {
+        this.audioEl.play().catch(e => console.log('Custom audio autoplay prevented:', e));
+      }
+      return;
+    }
+
+    // Otherwise, play the built-in procedural synthesizer
     this.nextNoteTime = ctx.currentTime + 0.05;
     this.currentStep = 0;
     this.scheduler();
@@ -342,6 +366,9 @@ class MusicEngine {
 
   static stop() {
     this.isRunning = false;
+    if (this.audioEl) {
+      this.audioEl.pause();
+    }
     if (this.timerId) {
       clearTimeout(this.timerId);
       this.timerId = null;
@@ -349,6 +376,15 @@ class MusicEngine {
   }
 
   static setMuted(muted) {
+    if (this.audioEl) {
+      if (muted) {
+        this.audioEl.pause();
+      } else {
+        this.audioEl.volume = 0.35;
+        this.audioEl.play().catch(() => {});
+      }
+      return;
+    }
     const ctx = SoundSynth.getContext();
     if (!ctx || !this.masterGain) return;
     const now = ctx.currentTime;
@@ -358,6 +394,15 @@ class MusicEngine {
   }
 
   static duck(duration = 0.7) {
+    if (this.audioEl && state.musicEnabled) {
+      this.audioEl.volume = 0.08;
+      setTimeout(() => {
+        if (this.audioEl && state.musicEnabled) {
+          this.audioEl.volume = 0.35;
+        }
+      }, duration * 1000);
+      return;
+    }
     const ctx = SoundSynth.getContext();
     if (!ctx || !this.masterGain || !state.musicEnabled) return;
     const now = ctx.currentTime;
