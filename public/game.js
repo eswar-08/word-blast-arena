@@ -12,7 +12,7 @@ const RANDOM_NAMES = ['NeonFox', 'CosmicAce', 'TurboPanda', 'PixelKnight', 'Blaz
 // 1. Copy your audio file into the "public" folder (e.g. public/bgm.mp3)
 // 2. Set the file name or URL in the line below:
 // ==========================================
-const CUSTOM_MUSIC_FILE = 'the_metro_proposal.mp3'; // <-- CHANGE THIS LINE (e.g. 'bgm.mp3' or full URL)
+const CUSTOM_MUSIC_FILE = 'F1 Movie - Background Music.mp3'; // <-- CHANGE THIS LINE (e.g. 'bgm.mp3' or full URL)
 
 // Application State
 const state = {
