@@ -13,6 +13,8 @@ const state = {
   roomCode: null,
   isHost: false,
   soundEnabled: true,
+  musicEnabled: true,
+  musicMode: 'lobby',
   audioCtx: null,
   currentAvatarIdx: 0,
   playerName: '',
@@ -57,6 +59,10 @@ class SoundSynth {
         source.start(0);
         this.isUnlocked = true;
       } catch (e) {}
+    }
+
+    if (state.musicEnabled && typeof MusicEngine !== 'undefined') {
+      MusicEngine.start();
     }
   }
 
@@ -145,6 +151,9 @@ class SoundSynth {
   }
 
   static playExplosion() {
+    if (typeof MusicEngine !== 'undefined') {
+      MusicEngine.duck(0.7);
+    }
     this.withContext((ctx) => {
       const now = ctx.currentTime;
 
@@ -193,6 +202,9 @@ class SoundSynth {
   }
 
   static playVictory() {
+    if (typeof MusicEngine !== 'undefined') {
+      MusicEngine.setMode('game_over');
+    }
     this.withContext((ctx) => {
       const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99]; // C4, E4, G4, C5, E5, G5
       const now = ctx.currentTime;
@@ -282,6 +294,343 @@ class SoundSynth {
 }
 
 // ==========================================
+// 1.5 DYNAMIC BACKGROUND MUSIC ENGINE
+// Procedural multi-track adaptive synthwave soundtrack
+// ==========================================
+class MusicEngine {
+  static isRunning = false;
+  static currentMode = 'lobby'; // 'lobby', 'game', 'tension', 'game_over'
+  static tempo = 114;
+  static nextNoteTime = 0.0;
+  static currentStep = 0; // 0 to 63
+  static timerId = null;
+  static masterGain = null;
+  static noiseBuffer = null;
+
+  static init(ctx) {
+    if (!this.masterGain && ctx) {
+      this.masterGain = ctx.createGain();
+      const initialVol = state.musicEnabled ? 0.16 : 0.0001;
+      this.masterGain.gain.setValueAtTime(initialVol, ctx.currentTime);
+      this.masterGain.connect(ctx.destination);
+      this.createNoiseBuffer(ctx);
+    }
+  }
+
+  static createNoiseBuffer(ctx) {
+    if (this.noiseBuffer) return;
+    try {
+      const bufferSize = ctx.sampleRate * 1.0;
+      this.noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = this.noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+    } catch (e) {}
+  }
+
+  static start() {
+    const ctx = SoundSynth.getContext();
+    if (!ctx) return;
+    this.init(ctx);
+    if (this.isRunning) return;
+    this.isRunning = true;
+    this.nextNoteTime = ctx.currentTime + 0.05;
+    this.currentStep = 0;
+    this.scheduler();
+  }
+
+  static stop() {
+    this.isRunning = false;
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+  }
+
+  static setMuted(muted) {
+    const ctx = SoundSynth.getContext();
+    if (!ctx || !this.masterGain) return;
+    const now = ctx.currentTime;
+    this.masterGain.gain.cancelScheduledValues(now);
+    const target = muted ? 0.0001 : 0.16;
+    this.masterGain.gain.exponentialRampToValueAtTime(target, now + 0.12);
+  }
+
+  static duck(duration = 0.7) {
+    const ctx = SoundSynth.getContext();
+    if (!ctx || !this.masterGain || !state.musicEnabled) return;
+    const now = ctx.currentTime;
+    try {
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+      this.masterGain.gain.exponentialRampToValueAtTime(0.03, now + 0.05);
+      this.masterGain.gain.exponentialRampToValueAtTime(0.16, now + duration);
+    } catch (e) {}
+  }
+
+  static setMode(mode) {
+    if (this.currentMode === mode) return;
+    this.currentMode = mode;
+    if (mode === 'lobby') {
+      this.tempo = 114;
+    } else if (mode === 'game') {
+      this.tempo = 128;
+    } else if (mode === 'tension') {
+      this.tempo = 152;
+    } else if (mode === 'game_over') {
+      this.tempo = 98;
+    }
+  }
+
+  static scheduler() {
+    if (!this.isRunning) return;
+    const ctx = SoundSynth.getContext();
+    if (!ctx) return;
+
+    if (ctx.state === 'suspended') {
+      this.timerId = setTimeout(() => this.scheduler(), 80);
+      return;
+    }
+
+    if (this.nextNoteTime < ctx.currentTime) {
+      this.nextNoteTime = ctx.currentTime + 0.02;
+    }
+
+    while (this.nextNoteTime < ctx.currentTime + 0.12) {
+      if (state.musicEnabled) {
+        this.scheduleStep(this.currentStep, this.nextNoteTime, ctx);
+      }
+      this.advanceStep();
+    }
+    this.timerId = setTimeout(() => this.scheduler(), 30);
+  }
+
+  static advanceStep() {
+    const secondsPerBeat = 60.0 / this.tempo;
+    const secondsPer16th = 0.25 * secondsPerBeat;
+    this.nextNoteTime += secondsPer16th;
+    this.currentStep = (this.currentStep + 1) % 64;
+  }
+
+  static midiToFreq(m) {
+    return 440 * Math.pow(2, (m - 69) / 12);
+  }
+
+  // --- Synthetic Instruments ---
+  static playKick(time, ctx, punch = 1) {
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(130 * punch, time);
+      osc.frequency.exponentialRampToValueAtTime(32, time + 0.07);
+
+      gain.gain.setValueAtTime(0.65 * punch, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(time);
+      osc.stop(time + 0.085);
+    } catch (e) {}
+  }
+
+  static playSnare(time, ctx) {
+    try {
+      if (!this.noiseBuffer) return;
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.noiseBuffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1600, time);
+      filter.Q.setValueAtTime(1.2, time);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.32, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.11);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      noise.start(time);
+      noise.stop(time + 0.12);
+
+      const osc = ctx.createOscillator();
+      const oscGain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(180, time);
+      osc.frequency.exponentialRampToValueAtTime(60, time + 0.05);
+
+      oscGain.gain.setValueAtTime(0.25, time);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+
+      osc.connect(oscGain);
+      oscGain.connect(this.masterGain);
+
+      osc.start(time);
+      osc.stop(time + 0.055);
+    } catch (e) {}
+  }
+
+  static playHiHat(time, ctx, open = false) {
+    try {
+      if (!this.noiseBuffer) return;
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.noiseBuffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(7500, time);
+
+      const gain = ctx.createGain();
+      const dur = open ? 0.12 : 0.035;
+      gain.gain.setValueAtTime(open ? 0.22 : 0.13, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      noise.start(time);
+      noise.stop(time + dur + 0.01);
+    } catch (e) {}
+  }
+
+  static playBass(time, ctx, midiNote, dur = 0.14) {
+    try {
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(this.midiToFreq(midiNote), time);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(750, time);
+      filter.frequency.exponentialRampToValueAtTime(220, time + dur);
+
+      gain.gain.setValueAtTime(0.3, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(time);
+      osc.stop(time + dur + 0.02);
+    } catch (e) {}
+  }
+
+  static playLead(time, ctx, midiNote, dur = 0.12) {
+    try {
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(this.midiToFreq(midiNote), time);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2800, time);
+
+      gain.gain.setValueAtTime(0.18, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(time);
+      osc.stop(time + dur + 0.02);
+    } catch (e) {}
+  }
+
+  // --- Step Dispatchers ---
+  static scheduleStep(step, time, ctx) {
+    if (this.currentMode === 'lobby') {
+      this.playLobbyStep(step, time, ctx);
+    } else if (this.currentMode === 'game' || this.currentMode === 'tension') {
+      this.playGameStep(step, time, ctx, this.currentMode === 'tension');
+    } else if (this.currentMode === 'game_over') {
+      this.playGameOverStep(step, time, ctx);
+    }
+  }
+
+  static playLobbyStep(step, time, ctx) {
+    const barStep = step % 16;
+    const barIdx = Math.floor(step / 16); // 0: Am, 1: F, 2: C, 3: G
+
+    // Drums
+    if (barStep === 0 || barStep === 8) this.playKick(time, ctx);
+    if (barStep === 14) this.playKick(time, ctx, 0.7);
+    if (barStep === 4 || barStep === 12) this.playSnare(time, ctx);
+    if (barStep % 2 === 0) this.playHiHat(time, ctx, barStep === 14);
+
+    // Bass Roots
+    const roots = [33, 29, 36, 31];
+    const root = roots[barIdx];
+    if (barStep === 0 || barStep === 3 || barStep === 8 || barStep === 12) {
+      const n = (barStep === 3) ? root + 7 : (barStep === 12 ? root + 5 : root);
+      this.playBass(time, ctx, n, 0.16);
+    }
+
+    // Melodic Arp
+    const arpAm = [57, 60, 64, 69, 67, 64, 60, 62];
+    const arpF  = [53, 57, 60, 65, 64, 60, 57, 60];
+    const arpC  = [48, 52, 55, 60, 62, 60, 55, 52];
+    const arpG  = [55, 59, 62, 67, 65, 62, 59, 57];
+    const arps = [arpAm, arpF, arpC, arpG];
+    if (barStep % 2 === 0) {
+      const noteIdx = (barStep / 2) % 8;
+      this.playLead(time, ctx, arps[barIdx][noteIdx], 0.14);
+    }
+  }
+
+  static playGameStep(step, time, ctx, isTension) {
+    const barStep = step % 16;
+    const barIdx = Math.floor(step / 16); // 0: Dm, 1: Bb, 2: F, 3: C
+
+    // High-energy Drums
+    if (barStep % 4 === 0) this.playKick(time, ctx, isTension ? 1.2 : 1.0);
+    if (isTension && (barStep === 2 || barStep === 6 || barStep === 10 || barStep === 14)) {
+      this.playKick(time, ctx, 0.7);
+    }
+    if (barStep === 4 || barStep === 12) this.playSnare(time, ctx);
+    this.playHiHat(time, ctx, barStep % 4 === 2);
+
+    // Pumping 16th Octave Bass
+    const lowRoots = [26, 22, 29, 24];
+    const r = lowRoots[barIdx];
+    const bassNote = (barStep % 2 === 0) ? r : r + 12;
+    this.playBass(time, ctx, bassNote, isTension ? 0.09 : 0.11);
+
+    // Driving Cyberpunk Arp
+    const arpDm = [62, 65, 69, 74, 72, 69, 65, 69, 62, 65, 69, 74, 77, 74, 69, 65];
+    const arpBb = [58, 62, 65, 70, 69, 65, 62, 65, 58, 62, 65, 70, 74, 70, 65, 62];
+    const arpF  = [53, 57, 60, 65, 67, 65, 60, 57, 53, 57, 60, 65, 69, 65, 60, 57];
+    const arpC  = [60, 64, 67, 72, 70, 67, 64, 60, 60, 64, 67, 72, 76, 72, 67, 64];
+    const gameArps = [arpDm, arpBb, arpF, arpC];
+
+    const note = gameArps[barIdx][barStep] + (isTension ? 12 : 0);
+    this.playLead(time, ctx, note, isTension ? 0.08 : 0.10);
+  }
+
+  static playGameOverStep(step, time, ctx) {
+    const barStep = step % 16;
+    if (barStep === 0 || barStep === 8) this.playKick(time, ctx, 0.7);
+    if (barStep === 4 || barStep === 12) this.playSnare(time, ctx);
+    if (barStep % 2 === 0) this.playHiHat(time, ctx);
+    if (barStep === 0 || barStep === 6 || barStep === 10) {
+      this.playBass(time, ctx, 36, 0.2);
+    }
+  }
+}
+
+// ==========================================
 // 2. DOM ELEMENTS CACHE
 // ==========================================
 const dom = {
@@ -289,6 +638,8 @@ const dom = {
   roomBadge: document.getElementById('room-code-badge'),
   roomCodeText: document.getElementById('room-code-text'),
   btnInstallApp: document.getElementById('btn-install-app'),
+  btnMusicToggle: document.getElementById('btn-music-toggle'),
+  musicIcon: document.getElementById('music-icon'),
   btnSoundToggle: document.getElementById('btn-sound-toggle'),
   soundIcon: document.getElementById('sound-icon'),
   btnHowToPlay: document.getElementById('btn-how-to-play'),
@@ -390,6 +741,15 @@ function initApp() {
   if (savedSound !== null) {
     state.soundEnabled = savedSound === 'true';
     dom.soundIcon.textContent = state.soundEnabled ? '🔊' : '🔇';
+  }
+
+  // Music preference
+  const savedMusic = localStorage.getItem('wb_music');
+  if (savedMusic !== null) {
+    state.musicEnabled = savedMusic === 'true';
+    if (dom.musicIcon) {
+      dom.musicIcon.textContent = state.musicEnabled ? '🎵' : '🔇';
+    }
   }
 
   // Parse room code from URL query (e.g. ?room=ABCD)
@@ -670,6 +1030,11 @@ function startTurnCountdown(totalSeconds, startTimeEpoch) {
       SoundSynth.playTick(urgency);
     }
 
+    // Dynamic music tempo escalation when time is running out!
+    if (remaining <= 3.5 && remaining > 0) {
+      if (typeof MusicEngine !== 'undefined') MusicEngine.setMode('tension');
+    }
+
     // Number display
     dom.bombTimerSeconds.textContent = Math.ceil(remaining);
 
@@ -887,6 +1252,17 @@ function switchScreen(screenKey) {
   if (screens[screenKey]) {
     screens[screenKey].classList.add('active');
   }
+
+  // Adaptive background music track switching
+  if (typeof MusicEngine !== 'undefined') {
+    if (screenKey === 'welcome' || screenKey === 'lobby') {
+      MusicEngine.setMode('lobby');
+    } else if (screenKey === 'bomb' || screenKey === 'mind_meld') {
+      MusicEngine.setMode('game');
+    } else if (screenKey === 'game_over') {
+      MusicEngine.setMode('game_over');
+    }
+  }
 }
 
 function bindEventListeners() {
@@ -1053,6 +1429,23 @@ function bindEventListeners() {
       sendAction('send_reaction', { emoji });
       spawnFloatingReaction(emoji, state.playerName);
     });
+  });
+
+  // Music Toggle
+  dom.btnMusicToggle.addEventListener('click', () => {
+    SoundSynth.unlock();
+    state.musicEnabled = !state.musicEnabled;
+    dom.musicIcon.textContent = state.musicEnabled ? '🎵' : '🔇';
+    localStorage.setItem('wb_music', state.musicEnabled);
+    if (typeof MusicEngine !== 'undefined') {
+      MusicEngine.setMuted(!state.musicEnabled);
+      if (state.musicEnabled) {
+        MusicEngine.start();
+        showToast('🎵 Music Enabled');
+      } else {
+        showToast('🔇 Music Muted');
+      }
+    }
   });
 
   // Sound Toggle
